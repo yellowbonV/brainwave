@@ -119,10 +119,14 @@ textarea {
     box-sizing: border-box;
 }
 
+.textarea-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
 .copy-button {
-    position: absolute;
-    top: 15px;
-    right: 15px;
     padding: 8px 12px;
     background: #007AFF;
     color: white;
@@ -130,7 +134,21 @@ textarea {
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.9rem;
-    z-index: 1;
+}
+
+.translate-button {
+    padding: 8px 12px;
+    background: #5856D6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.translate-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .button-container {
@@ -268,6 +286,11 @@ body.dark-theme .replay-icon-button:disabled {
 body.dark-theme .copy-button {
     background: #34C759;
     /* Green */
+}
+
+body.dark-theme .translate-button {
+    background: #5E5CE6;
+    /* Indigo */
 }
 
 @keyframes blink {

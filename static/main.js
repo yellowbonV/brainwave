@@ -26,8 +26,11 @@ const enhancedTranscript = document.getElementById('enhancedTranscript');
 const copyButton = document.getElementById('copyButton');
 const copyEnhancedButton = document.getElementById('copyEnhancedButton');
 const readabilityButton = document.getElementById('readabilityButton');
+const readabilityEnButton = document.getElementById('readabilityEnButton');
 const askAIButton = document.getElementById('askAIButton');
 const correctnessButton = document.getElementById('correctnessButton');
+const translateButton = document.getElementById('translateButton');
+const translateEnhancedButton = document.getElementById('translateEnhancedButton');
 
 // Configuration
 const targetSeconds = 5;
@@ -859,6 +862,50 @@ if (readabilityButton) readabilityButton.onclick = async () => {
     }
 };
 
+if (readabilityEnButton) readabilityEnButton.onclick = async () => {
+    const inputText = transcript.value.trim();
+    if (!inputText) {
+        alert('Please enter text to enhance readability.');
+        return;
+    }
+
+    startTimer();
+    readabilityEnButton.disabled = true;
+
+    try {
+        const response = await fetch('/api/v1/readability_en', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: inputText })
+        });
+
+        if (!response.ok) throw new Error(`Readability (English) enhancement failed (HTTP ${response.status})`);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            fullText += decoder.decode(value, { stream: true });
+            enhancedTranscript.value = fullText;
+            enhancedTranscript.scrollTop = enhancedTranscript.scrollHeight;
+        }
+
+        if (!isMobileDevice()) copyToClipboard(fullText, copyEnhancedButton);
+
+    } catch (error) {
+        console.error('Readability (English) error:', error);
+        alert('Error enhancing readability (English). Please try again.');
+    } finally {
+        // Always stop the timer and re-enable the button, even if the stream
+        // breaks or stalls — otherwise the timer runs forever and the button stays stuck.
+        stopTimer();
+        readabilityEnButton.disabled = false;
+    }
+};
+
 if (askAIButton) askAIButton.onclick = async () => {
     startTimer();
     const inputText = transcript.value.trim();
@@ -928,6 +975,55 @@ if (correctnessButton) correctnessButton.onclick = async () => {
         stopTimer();
     }
 };
+
+// Translate a textarea's content to English, overwriting it in place
+async function translateInPlace(textarea, button) {
+    const inputText = textarea.value.trim();
+    if (!inputText) {
+        alert('Please enter text to translate.');
+        return;
+    }
+
+    // Translate overwrites the box in place, so keep the original to restore on failure.
+    const originalText = textarea.value;
+    startTimer();
+    if (button) button.disabled = true;
+
+    try {
+        const response = await fetch('/api/v1/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: inputText })
+        });
+
+        if (!response.ok) throw new Error(`Translation failed (HTTP ${response.status})`);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            fullText += decoder.decode(value, { stream: true });
+            textarea.value = fullText;
+            textarea.scrollTop = textarea.scrollHeight;
+        }
+
+    } catch (error) {
+        console.error('Translation error:', error);
+        // Restore the original text so a mid-stream failure doesn't wipe the user's input.
+        textarea.value = originalText;
+        alert('Error translating text. Your original text has been kept — please try again.');
+    } finally {
+        // Always stop the timer and re-enable the button so a stall can't leave the UI stuck.
+        stopTimer();
+        if (button) button.disabled = false;
+    }
+}
+
+if (translateButton) translateButton.onclick = () => translateInPlace(transcript, translateButton);
+if (translateEnhancedButton) translateEnhancedButton.onclick = () => translateInPlace(enhancedTranscript, translateEnhancedButton);
 
 // Theme handling
 function toggleTheme() {

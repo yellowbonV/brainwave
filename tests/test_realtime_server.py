@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from realtime_server import app, ReadabilityRequest, CorrectnessRequest, AskAIRequest
+from realtime_server import app, ReadabilityRequest, CorrectnessRequest, AskAIRequest, TranslateRequest
 import json
 from unittest.mock import patch, AsyncMock, MagicMock
 
@@ -30,6 +30,20 @@ def test_enhance_readability(mock_llm_processor):
 def test_check_correctness(mock_llm_processor):
     request = CorrectnessRequest(text="Test fact checking")
     response = client.post("/api/v1/correctness", json=request.model_dump())
+    assert response.status_code == 200
+    assert "Mocked streaming response" in response.text
+
+
+def test_enhance_readability_english(mock_llm_processor):
+    request = ReadabilityRequest(text="需要翻译成英文的中文文本")
+    response = client.post("/api/v1/readability_en", json=request.model_dump())
+    assert response.status_code == 200
+    assert "Mocked streaming response" in response.text
+
+
+def test_translate_to_english(mock_llm_processor):
+    request = TranslateRequest(text="需要翻译的文本")
+    response = client.post("/api/v1/translate", json=request.model_dump())
     assert response.status_code == 200
     assert "Mocked streaming response" in response.text
 
@@ -97,4 +111,18 @@ def test_correctness_prompt_not_found():
     with patch('realtime_server.PROMPTS', {}):
         request = CorrectnessRequest(text="Test")
         response = client.post("/api/v1/correctness", json=request.model_dump())
+        assert response.status_code == 500
+
+
+def test_readability_english_prompt_not_found():
+    with patch('realtime_server.PROMPTS', {}):
+        request = ReadabilityRequest(text="Test")
+        response = client.post("/api/v1/readability_en", json=request.model_dump())
+        assert response.status_code == 500
+
+
+def test_translate_prompt_not_found():
+    with patch('realtime_server.PROMPTS', {}):
+        request = TranslateRequest(text="Test")
+        response = client.post("/api/v1/translate", json=request.model_dump())
         assert response.status_code == 500

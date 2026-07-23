@@ -49,6 +49,12 @@ class AskAIRequest(BaseModel):
 class AskAIResponse(BaseModel):
     answer: str = Field(..., description="AI's answer to the question.")
 
+class TranslateRequest(BaseModel):
+    text: str = Field(..., description="The text to translate into English.")
+
+class TranslateResponse(BaseModel):
+    translated_text: str = Field(..., description="The text translated into English.")
+
 app = FastAPI()
 
 @app.get("/health")
@@ -525,17 +531,40 @@ async def enhance_readability(request: ReadabilityRequest):
     if not prompt:
         raise HTTPException(status_code=500, detail="Readability prompt not found.")
 
-    try:
-        async def text_generator():
+    # NOTE: error handling MUST live inside the generator. The generator is iterated
+    # by Starlette *after* this function returns, so an outer try/except around the
+    # StreamingResponse construction never sees streaming errors — it is dead code.
+    async def text_generator():
+        try:
             # Use gpt-4o specifically for readability
             async for part in llm_processor.process_text(request.text, prompt, model="gpt-4o"):
                 yield part
+        except Exception as e:
+            logger.error(f"Error enhancing readability: {e}", exc_info=True)
+            raise
 
-        return StreamingResponse(text_generator(), media_type="text/plain")
+    return StreamingResponse(text_generator(), media_type="text/plain")
 
-    except Exception as e:
-        logger.error(f"Error enhancing readability: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error processing readability enhancement.")
+@app.post(
+    "/api/v1/readability_en",
+    response_model=ReadabilityResponse,
+    summary="Enhance Readability in English",
+    description="Improve readability and render the result in English using GPT-4o."
+)
+async def enhance_readability_english(request: ReadabilityRequest):
+    prompt = PROMPTS.get('readability-enhance-english')
+    if not prompt:
+        raise HTTPException(status_code=500, detail="Readability (English) prompt not found.")
+
+    async def text_generator():
+        try:
+            async for part in llm_processor.process_text(request.text, prompt, model="gpt-4o"):
+                yield part
+        except Exception as e:
+            logger.error(f"Error enhancing readability (English): {e}", exc_info=True)
+            raise
+
+    return StreamingResponse(text_generator(), media_type="text/plain")
 
 # TEMPORARILY DISABLED - Ask AI API endpoint
 # @app.post(
@@ -568,16 +597,36 @@ async def check_correctness(request: CorrectnessRequest):
     if not prompt:
         raise HTTPException(status_code=500, detail="Correctness prompt not found.")
 
-    try:
-        async def text_generator():
+    async def text_generator():
+        try:
             async for part in llm_processor.process_text(request.text, prompt, model="gpt-4o-search-preview"):
                 yield part
+        except Exception as e:
+            logger.error(f"Error checking correctness: {e}", exc_info=True)
+            raise
 
-        return StreamingResponse(text_generator(), media_type="text/plain")
+    return StreamingResponse(text_generator(), media_type="text/plain")
 
-    except Exception as e:
-        logger.error(f"Error checking correctness: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error processing correctness check.")
+@app.post(
+    "/api/v1/translate",
+    response_model=TranslateResponse,
+    summary="Translate Text to English",
+    description="Translate the provided text into English using GPT-4o."
+)
+async def translate_to_english(request: TranslateRequest):
+    prompt = PROMPTS.get('translate-to-english')
+    if not prompt:
+        raise HTTPException(status_code=500, detail="Translate prompt not found.")
+
+    async def text_generator():
+        try:
+            async for part in llm_processor.process_text(request.text, prompt, model="gpt-4o"):
+                yield part
+        except Exception as e:
+            logger.error(f"Error translating text: {e}", exc_info=True)
+            raise
+
+    return StreamingResponse(text_generator(), media_type="text/plain")
 
 if __name__ == '__main__':
     uvicorn.run(app, host="0.0.0.0", port=3005)
